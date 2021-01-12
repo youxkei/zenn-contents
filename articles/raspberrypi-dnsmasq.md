@@ -3,21 +3,21 @@ title: "夜になったらYouTubeやTwitterに繋がらなくして睡眠時間�
 emoji: "💤"
 type: "tech"
 topics: ["RaspberryPi", "dnsmasq"]
-published: false
+published: true
 ---
 YouTubeやニコニコ動画で永遠と動画を見続けてしまったりTwitterを永遠と見続けてしまったりして夜ふかししてしまうことがよくあると思います。
 
 そこで、どこのご家庭にも1台は余っているRaspberry Piを使って、夜になったらYouTubeやTwitterに繋がらなくすることで睡眠時間を確保していきます。
 
-繋がらなくすると言っても、方法はいろいろとあると思います。
-
-今回は、Raspberry PiでDNSサーバを立てて、夜になったら設定したドメイン名に対する名前解決をできなくします。
+繋がらなくすると言っても方法はいろいろとありますが、今回はRaspberry PiでDNSサーバを立てて、夜になったら設定したドメイン名に対する名前解決をできなくします。
 
 さらに、Raspberry PiでDHCPサーバを立てていい感じに設定することで、PCだけではなく携帯端末からも繋がらなくします。
 
-## 必要なもの
+DNSサーバとDHCPサーバにはdnsmasqを使います。
+
+## 今回使った機器
 - Raspberry Pi
-    - バージョンは何でもいいですが、自分はRaspberry Pi 4を使いました。
+    - Raspberry Pi 4を使いました。
 - 「DHCP機能」と「RAによるDNSサーバの通知機能」を切ることができるルータ
     - Raspberry PiをDHCPサーバとして動作させるため、ルータのDHCP機能を切る必要があります。
     - さらに、IPv6のRAによってDNSサーバのIPv6アドレスが通知されると困るので、この機能も切る必要があります。
@@ -94,11 +94,11 @@ dnsmasqの設定のそれぞれの項目については以下の通りです。
     - Raspberry Piのアドレスを指定します。
         - 指定しないとdnsmasqは`0.0.0.0:53`をlistenしようとするので、systemd-resolvedと競合します。
 - `bind-interfaces`
-    - 非常に重要なオプションです。これに気づかずに1時間くらいハマりました・・・
-    - このオプションを指定しなかった場合、dnsmasqは`listen-address`に何を指定しても`0.0.0.0:53`でlistenしようとします。
-        - つまり、systemd-resolvedとの競合を回避するために必須のオプションです
+    - 非常に重要な設定です。これに気づかずに1時間くらいハマりました・・・
+    - この設定を有効にしなかった場合、dnsmasqは`listen-address`に何を指定しても`0.0.0.0:53`でlistenしようとします。
+        - つまり、systemd-resolvedとの競合を回避するために必須です。
 - `no-hosts`
-    - 名前解決の際に`/etc/hosts`を見ないようにします
+    - 名前解決の際に`/etc/hosts`を見ないようにします。
 - `max-ttl`
     - dnsmasqが返すDNSレスポンスのTTLの最大値を設定します。
         - DNSによる名前解決の結果はこのTTLの期間だけPCや携帯端末にキャッシュされるので、それなりに短くする必要があります。
@@ -107,21 +107,31 @@ dnsmasqの設定のそれぞれの項目については以下の通りです。
     - DHCPの設定です。
         - デフォルトゲートウェイをルータのIPアドレスである`192.168.10.1`に、DNSサーバのIPアドレスを自身の`192.168.10.3`に設定しています。
 
-### 名前解決ができないドメインを設定する
+### 名前解決ができないようにするドメインを設定する
 ```md:/etc/dnsmasq.hosts
 address=/youtube.com/googlevideo.com/
 address=/nicovideo.jp/dmc.nico/
 address=/twitter.com/twimg.com/
 ```
 
-`address`オプションは`/<domain>[/<domain>...]/<ipaddr>`という構文で、`<domain>`を`<ipaddr>`に名前解決するように設定できます。
+`address`は`/<domain>[/<domain>...]/<ipaddr>`という構文で、`<domain>`を`<ipaddr>`に名前解決するように設定できます。
 
 今回は名前解決して欲しくないので`<ipaddr>`を空文字列にしました。
 `<ipaddr>`を空文字列にすると、`<domain>`に対してNXDOMAINを返すように設定できます。
 
-`address`オプションは1行で`/example.com/youtube.com/nicovideo.jp/`のように複数のドメインを指定できるので、ひとまず関連があるドメインをまとめました。
+`address`は1行で`/example.com/youtube.com/nicovideo.jp/`のように複数のドメインを指定できるので、ひとまず関連があるドメインをまとめました。
 
-このドメインの設定は`/etc/dnsmasq.hosts`に置かれているので、通常であれば読み込まれません。ここがポイントです。
+
+`address`は設定したドメインのサブドメインについても効果があります。
+ある特定のサブドメインの名前解決はできるようにしたい場合、次のように`server`を設定します。
+
+```
+address=/nicovideo.jp/
+server=/live.nicovideo.jp/#
+```
+
+さて、このドメインの設定は`/etc/dnsmasq.hosts`に置かれているので、通常であればこの設定は読み込まれません。
+dnsmasqが設定ファイルを読みに行くディレクトリに`/etc/dnsmasq.hosts`へのシンボリックリンクを張ったり張らなかったりすることで、この設定を有効にしたり無効にしたりします。
 
 ### 夜になったらdnsmasqの設定を変えるようにする
 ```bash:/etc/cron.d/dnsmasq
@@ -133,3 +143,14 @@ address=/twitter.com/twimg.com/
 こうすることで、23時に`/etc/dnsmasq.hosts`の設定が有効になります。
 
 毎日6時に`/etc/dnsmasq.d/hosts`を消すことで、`/etc/dnsmasq.hosts`の設定が無効になります。
+
+### ルータの設定を変える
+ルータの設定を以下のように変更します。
+
+- DHCP機能をオフにする。
+    - DHCPv4とDHCPv6の両方をオフにします。
+- IPv6のステートレス自動設定で、DNSサーバのIPv6アドレスを通知しないようにする。
+    - DNSサーバのIPv6アドレスさえ通知されなければいいので、ステートレス自動設定機能はオフにする必要はありません。
+
+## まとめ
+dnsmasqを使って、夜になったらYouTubeやニコニコ動画やTwitterなどの睡眠妨害サイトに繋がらなくすることで、睡眠時間を確保することができました。
