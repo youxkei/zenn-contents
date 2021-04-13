@@ -15,7 +15,7 @@ YouTubeやニコニコ動画で永遠と動画を見続けてしまったりTwit
 
 DNSサーバとDHCPサーバにはdnsmasqを使います。
 
-## 今回使った機器
+# 今回使った機器
 - Raspberry Pi
     - Raspberry Pi 4を使いました。
 - 「DHCP機能」と「RAによるDNSサーバの通知機能」を切ることができるルータ
@@ -23,9 +23,9 @@ DNSサーバとDHCPサーバにはdnsmasqを使います。
     - さらに、IPv6のRAによってDNSサーバのIPv6アドレスが通知されると困るので、この機能も切る必要があります。
         - RAによるIPv6アドレス割り当て自体はDHCPと競合しないので、機能を切る必要はありません。
 
-## 手順
+# 手順
 
-### Raspberry PiにOSを入れる
+## Raspberry PiにOSを入れる
 何はともあれまずはRaspberry PiにOSをインストールします。
 
 今回はUbuntu Server 20.04.1 LTSを使ったので、以下の手順ではそれを前提とします。
@@ -43,7 +43,7 @@ sudo arp-scan -l
 
 OSのインストールが終わったら、適宜アップグレードなどをしておきます。
 
-### Raspberry PiのIPアドレスを固定する
+## Raspberry PiのIPアドレスを固定する
 Raspberry PiをDNSサーバにするので、IPアドレスが固定されている必要があります。
 
 netplanの設定を書いて、IPアドレスを固定していきます。
@@ -68,7 +68,7 @@ network:
 
 ルータやRaspberry PiのIPアドレスは適宜読み替えてください。
 
-### dnsmasqを導入する
+## dnsmasqを導入する
 dnsmasqをインストールして設定します。
 
 ```bash
@@ -107,7 +107,7 @@ dnsmasqの設定のそれぞれの項目については以下の通りです。
     - DHCPの設定です。
         - デフォルトゲートウェイをルータのIPアドレスである`192.168.10.1`に、DNSサーバのIPアドレスを自身の`192.168.10.3`に設定しています。
 
-### 名前解決ができないようにするドメインを設定する
+## 名前解決ができないようにするドメインを設定する
 ```md:/etc/dnsmasq.hosts
 address=/youtube.com/googlevideo.com/
 address=/nicovideo.jp/dmc.nico/
@@ -133,7 +133,7 @@ server=/live.nicovideo.jp/#
 さて、このドメインの設定は`/etc/dnsmasq.hosts`に置かれているので、通常であればこの設定は読み込まれません。
 dnsmasqが設定ファイルを読みに行くディレクトリに`/etc/dnsmasq.hosts`へのシンボリックリンクを張ったり張らなかったりすることで、この設定を有効にしたり無効にしたりします。
 
-### 夜になったらdnsmasqの設定を変えるようにする
+## 夜になったらdnsmasqの設定を変えるようにする
 ```bash:/etc/cron.d/dnsmasq
 0 23  *  *  * root      ln -s /etc/dnsmasq.hosts /etc/dnsmasq.d/hosts; systemctl restart dnsmasq
 0  6  *  *  * root      rm                       /etc/dnsmasq.d/hosts; systemctl restart dnsmasq
@@ -144,7 +144,7 @@ dnsmasqが設定ファイルを読みに行くディレクトリに`/etc/dnsmasq
 
 毎日6時に`/etc/dnsmasq.d/hosts`を消すことで、`/etc/dnsmasq.hosts`の設定が無効になります。
 
-### ルータの設定を変える
+## ルータの設定を変える
 ルータの設定を以下のように変更します。
 
 - DHCP機能をオフにする。
@@ -152,5 +152,5 @@ dnsmasqが設定ファイルを読みに行くディレクトリに`/etc/dnsmasq
 - IPv6のステートレス自動設定で、DNSサーバのIPv6アドレスを通知しないようにする。
     - DNSサーバのIPv6アドレスさえ通知されなければいいので、ステートレス自動設定機能はオフにする必要はありません。
 
-## まとめ
+# まとめ
 dnsmasqを使って、夜になったらYouTubeやニコニコ動画やTwitterなどの睡眠妨害サイトに繋がらなくすることで、睡眠時間を確保することができました。
